@@ -30,54 +30,51 @@ def main():
     (options, args) = parser.parse_args()
     if len(args) > 1 or len(args) == 0:
         # return help message if argument number is incorrect
-        raise ValueError("Incorrect number of arguments provided. type 'python nimbleparser.py -h' to see help")
-        #print __doc__
-        #parser.print_help()
+        print __doc__
+        parser.print_help()
         sys.exit(0)
-    
+
     #if options[0] == 'F':
     #    verbose = False
     sample_key = args[0]
 
     #initialize Samples (keep list of samples in experiment)
     samples = initializeSamples(sample_key)
+    #debug
+    print "Samples are: "
+    for sample in samples:
+        print sample.filename
 
     #initialize Array (& probes)
     array = Array()
+    #debug
+    print "Array ", array, " has ", array.getArrayLenght(), " probes."
 
     #add array to samples
     for sample in samples:
         sample.addArray(array)
 
     #read intensity for each sample
-    #for sample in samples:
-        #if verbose:
-        #    print "Reading ", sample.filename, " probe intensities..."
-        #sample.readIntensities(sample.filename)
-    samples[0].readIntensities(samples[0].filename)
-
-    #Reporting...
-    print "Samples are: "
     for sample in samples:
-        print sample.filename
-    print "Array ", array, " has ", array.getArrayLenght(), " probes."
+        print "Reading ", sample.filename, " probe intensities..."
+        sample.readIntensities(sample.filename)
 
-
-    #Quering probe intensity values
-    print "Probe 1 intensity values:"
-    print array.probes[0].intensity
-
+    #debug
+    for probe in array.probes[:20]:
+        print probe.intensity
 
 class Array(object):
     """Generic Class for any array in the experiment"""
     def __init__(self):
+        sys.stdout.write("Array initializing...\n")
         self.name = self.getArrayLayout()
+        sys.stdout.write("Array layout is: %s%%   \n" % (self.name) )
         self.probes = []
         self.addProbes(self.getArrayLayout())
 
     def __str__(self):
         """Returns a string representation of self"""
-        return self.name
+        return str(self.name)
 
     def getArrayLenght(self):
         return len(self.probes)
@@ -93,6 +90,12 @@ class Array(object):
                 return filenm
         if not found:
             raise NotImplementedError("Feature not yet implemented. Put .ndf file in current directory")
+            #getNameFromFile(filename)
+
+        def getNameFromFile(self, filename):
+            """
+            """
+            pass
             #first_line = linecache.getline(filename, 0).rstrip().split('\t')
             #if '.ndf' in first_line:
                 #find name + '.ndf'
@@ -100,32 +103,32 @@ class Array(object):
     def addProbes(self, filename, skip=1):
         """Reads .ndf file and returns probes atributes"""
         i = 0
-        for line in open(filename, 'r'):
+        fl = open(filename, 'r')
+        for line in fl.readlines():
             if i < skip:
                 i += 1
             else:
                 line = line.rstrip().split('\t')
-                vars()['p' + str(line[12])] = Probe(self, line[1], line[5], line[12], line[15], line[16])
-                self.probes.append(vars()['p' + str(line[12])])
+                #self.probes += [Probe(self, line[1], line[5], line[12], line[15], line[16])]
+                self.probes.append(Probe(line[12]))
                 i += 1
+        fl.close()
 
 
 class Probe(object):
     """Class to describe probes, their fixed atributes and intensity per sample"""
-    def __init__(self, array, container, probe_seq, probeID, X, Y):
-        self.array = array
-        self.container = container
-        self.probe_seq = probe_seq
+    #def __init__(self, array='', container='', probeID='', probe_seq='', X='', Y=''):
+    def __init__(self, probeID):
+        #self.array = array
+        #self.container = container
+        #self.probe_seq = probe_seq
         self.probeID = probeID
-        self.X = X
-        self.Y = Y
+        #self.X = X
+        #self.Y = Y
         self.intensity = {}  # a dic of {sample:probe_intensity}
 
     def __str__(self):
         """Returns a string representation of self"""
-        return self.probeID
-
-    def getprobeID(self):
         return self.probeID
 
     def addExperimentIntensity(self, sample, PM):
@@ -140,9 +143,9 @@ class Sample(object):
         self.sample_name = sample_name
         self.array = ''
 
-    def getSampleName(self):
+    def __str__(self):
         """Returns a string representation of self"""
-        return self.filename
+        return str(self.filename)
 
     def addArray(self, array):
         self.array = array
@@ -152,23 +155,31 @@ class Sample(object):
         skip = starting line of data
         Adds relevant info to the probes.
         """
-        standard_header = ['IMAGE_ID', 'GENE_EXPR_OPTION', 'SEQ_ID', 'PROBE_ID', 'POSITION', 'X', 'Y', 'MATCH_INDEX', 'SEQ_URL', 'PM', 'MM']
-        if not ".pair" in filename:
-            raise ValueError("File not in .pair format")
-        if not filename in os.listdir('.'):
-            raise IOError("File not found")
-        if getHeader(filename, skip) != standard_header:
-            raise ValueError("File not in standard .pair format")
-        i = 0
-        for line in open(filename, 'r'):
-            if i < skip:
-                i += 1
+        def isFileStandard(filename, skip=2):
+            standard_header = ['IMAGE_ID', 'GENE_EXPR_OPTION', 'SEQ_ID', 'PROBE_ID', 'POSITION', 'X', 'Y', 'MATCH_INDEX', 'SEQ_URL', 'PM', 'MM']
+            if not ".pair" in filename:
+                raise ValueError("File not in .pair format")
+            elif not filename in os.listdir('.'):
+                raise IOError("File not found")
+            elif getHeader(filename, skip) != standard_header:
+                raise ValueError("File not in standard .pair format")
             else:
-                line = line.rstrip().split('\t')
-                probeID = line[3]
-                PM = line[9]
-                probeInd = self.array.probes.index(probeID)
-                self.array.probes[probeInd].addExperimentIntensity(self, PM)
+                return True
+
+        if isFileStandard(filename, skip):
+            i = 0
+            fil = open(filename, 'r')
+            for line in fil:
+                if i < skip:
+                    i += 1
+                else:
+                    line = line.rstrip().split('\t')
+                    probeID = line[3]
+                    PM = line[9]
+                    for probe in [probe for probe in self.array.probes if probe.probeID == probeID]:
+                        probe.addExperimentIntensity(self, PM)
+            fil.close()
+
 
 
 def initializeSamples(filename, skip=1):
@@ -180,8 +191,7 @@ def initializeSamples(filename, skip=1):
             i += 1
         else:
             line = line.rstrip().split('\t')
-            vars()[str(line[2])] = Sample(line[0], line[1], line[2])
-            samples.append(vars()[line[2]])
+            samples += [Sample(line[0], line[1], line[2])]
             i += 1
     return samples
 
@@ -194,17 +204,6 @@ def getHeader(filename, skip=2):
     return linecache.getline(filename, skip).rstrip().split('\t')
 
 
-
-
-
-def readPairs(filenames):
-    """read a set of .pairs files and returns perfect matches per probe"""
-    table = []
-    for fl in filenames:
-        sample = readNimble(fl)
-        table.append(sample)
-    return table        
-#readPairs('asd.pair')
 
 
 

@@ -1,0 +1,3 @@
+file	sample.type	sample.name
+file1.pair	e	H3K4me3
+file2.pair	i	H3K4me3
