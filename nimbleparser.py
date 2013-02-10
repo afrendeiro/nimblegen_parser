@@ -54,14 +54,19 @@ def main():
     for sample in samples:
         sample.addArray(array)
 
-    #read intensity for each sample
-    for sample in samples:
-        print "Reading ", sample.filename, " probe intensities..."
-        sample.readIntensities(sample.filename)
+    print array.probes[0].probeID
+    print array.probes[0].probe_seq
+    print array.probes[999].probeID
+    print array.probes[999].probe_seq
 
-    #debug
-    for probe in array.probes[:20]:
-        print probe.intensity
+    #read intensity for each sample
+    #for sample in samples:
+        #print "Reading ", sample.filename, " probe intensities..."
+        #sample.readIntensities(sample.filename)
+
+    ##debug
+    #for probe in array.probes[:20]:
+        #print probe.intensity
 
 class Array(object):
     """Generic Class for any array in the experiment"""
@@ -109,22 +114,22 @@ class Array(object):
                 i += 1
             else:
                 line = line.rstrip().split('\t')
-                #self.probes += [Probe(self, line[1], line[5], line[12], line[15], line[16])]
-                self.probes.append(Probe(line[12]))
+                self.probes.append(Probe(self, line[1], line[5], line[12], line[15], line[16]))
+                #self.probes.append(Probe())
                 i += 1
         fl.close()
 
 
 class Probe(object):
     """Class to describe probes, their fixed atributes and intensity per sample"""
-    #def __init__(self, array='', container='', probeID='', probe_seq='', X='', Y=''):
-    def __init__(self, probeID):
-        #self.array = array
-        #self.container = container
-        #self.probe_seq = probe_seq
+    def __init__(self, array, container, probeID, probe_seq, X, Y):
+    #def __init__(self):
+        self.array = array
+        self.container = container
+        self.probe_seq = probe_seq
         self.probeID = probeID
-        #self.X = X
-        #self.Y = Y
+        self.X = X
+        self.Y = Y
         self.intensity = {}  # a dic of {sample:probe_intensity}
 
     def __str__(self):
