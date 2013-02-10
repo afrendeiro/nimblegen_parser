@@ -14,6 +14,7 @@ import sys
 import linecache
 import os
 from optparse import OptionParser
+import cPickle
 
 def main():
     # option parser
@@ -73,7 +74,7 @@ class Array(object):
     def __init__(self):
         sys.stdout.write("Array initializing...\n")
         self.name = self.getArrayLayout()
-        sys.stdout.write("Array layout is: %s%%   \n" % (self.name) )
+        sys.stdout.write("Array file is: %s \n" % (self.name) )
         self.probes = []
         self.addProbes(self.getArrayLayout())
 
@@ -109,15 +110,17 @@ class Array(object):
         """Reads .ndf file and returns probes atributes"""
         i = 0
         fl = open(filename, 'r')
+        pic = open('pickle_probes.pkl', 'w+')
         for line in fl.readlines():
             if i < skip:
                 i += 1
             else:
                 line = line.rstrip().split('\t')
                 self.probes.append(Probe(self, line[1], line[5], line[12], line[15], line[16]))
-                #self.probes.append(Probe())
+                cPickle.dump(self.probes[-1], pic, -1)
                 i += 1
         fl.close()
+        pic.close()
 
 
 class Probe(object):
@@ -186,7 +189,6 @@ class Sample(object):
             fil.close()
 
 
-
 def initializeSamples(filename, skip=1):
     """ Creates Sample objects to be included in the analysis"""
     i = 0
@@ -209,12 +211,9 @@ def getHeader(filename, skip=2):
     return linecache.getline(filename, skip).rstrip().split('\t')
 
 
-
-
-
 if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        sys.stderr.write("Program canceled by user!\n")
+        sys.stderr.write("\nProgram canceled by user!\n")
         sys.exit(0)
