@@ -14,7 +14,6 @@ import sys
 import linecache
 import os
 from optparse import OptionParser
-import cPickle
 
 def main():
     # option parser
@@ -49,21 +48,16 @@ def main():
     #initialize Array (& probes)
     array = Array()
     #debug
-    print "Array ", array, " has ", array.getArrayLenght(), " probes."
+    print "Array " + str(array) + " has " + str(array.probe_number) + " probes."
 
     #add array to samples
     for sample in samples:
         sample.addArray(array)
 
-    print array.probes[0].probeID
-    print array.probes[0].probe_seq
-    print array.probes[999].probeID
-    print array.probes[999].probe_seq
-
     #read intensity for each sample
-    #for sample in samples:
-        #print "Reading ", sample.filename, " probe intensities..."
-        #sample.readIntensities(sample.filename)
+    for sample in samples:
+        print "Reading ", sample.filename, " probe intensities..."
+        sample.readIntensities(sample.filename)
 
     ##debug
     #for probe in array.probes[:20]:
@@ -72,18 +66,13 @@ def main():
 class Array(object):
     """Generic Class for any array in the experiment"""
     def __init__(self):
-        sys.stdout.write("Array initializing...\n")
         self.name = self.getArrayLayout()
-        sys.stdout.write("Array file is: %s \n" % (self.name) )
-        self.probes = []
-        self.addProbes(self.getArrayLayout())
+        self.probes = {}
+        self.probe_number = 0
+        self.readNDF(self.getArrayLayout())
 
     def __str__(self):
-        """Returns a string representation of self"""
-        return str(self.name)
-
-    def getArrayLenght(self):
-        return len(self.probes)
+        return self.name
 
     def getArrayLayout(self, filename='default'):
         """ looks in the working dir for the required .ndf file.
@@ -99,61 +88,42 @@ class Array(object):
             #getNameFromFile(filename)
 
         def getNameFromFile(self, filename):
-            """
-            """
+            """        """
             pass
             #first_line = linecache.getline(filename, 0).rstrip().split('\t')
             #if '.ndf' in first_line:
                 #find name + '.ndf'
 
-    def addProbes(self, filename, skip=1):
+    def addProbe(self, probeID, probe_seq, X, Y):
+        """Adds probe to array"""
+        self.probes[probe_seq] = [probeID, X, Y]
+        self.probe_number += 1
+
+    def readNDF(self, filename, skip=1):
         """Reads .ndf file and returns probes atributes"""
         i = 0
         fl = open(filename, 'r')
-        pic = open('pickle_probes.pkl', 'w+')
         for line in fl.readlines():
             if i < skip:
                 i += 1
             else:
                 line = line.rstrip().split('\t')
-                self.probes.append(Probe(self, line[1], line[5], line[12], line[15], line[16]))
-                cPickle.dump(self.probes[-1], pic, -1)
+                probeID = line[5]
+                probe_seq = line[12]
+                X = line[15]
+                Y = line[16]
+                self.addProbe(probeID, probe_seq, X, Y)
                 i += 1
         fl.close()
-        pic.close()
-
-
-class Probe(object):
-    """Class to describe probes, their fixed atributes and intensity per sample"""
-    def __init__(self, array, container, probeID, probe_seq, X, Y):
-    #def __init__(self):
-        self.array = array
-        self.container = container
-        self.probe_seq = probe_seq
-        self.probeID = probeID
-        self.X = X
-        self.Y = Y
-        self.intensity = {}  # a dic of {sample:probe_intensity}
-
-    def __str__(self):
-        """Returns a string representation of self"""
-        return self.probeID
-
-    def addExperimentIntensity(self, sample, PM):
-        self.intensity[sample] = PM
 
 
 class Sample(object):
     """Generic Class for a Sample made in a hybridization experiment"""
-    def __init__(self, filename, sample_type, sample_name):
+    def __init__(self, filename, sample_type, sample_experiment):
         self.filename = filename
         self.sample_type = sample_type  # consider making separate subclasses for IP and input Samples
-        self.sample_name = sample_name
+        self.sample_experiment = sample_experiment
         self.array = ''
-
-    def __str__(self):
-        """Returns a string representation of self"""
-        return str(self.filename)
 
     def addArray(self, array):
         self.array = array
@@ -184,12 +154,11 @@ class Sample(object):
                     line = line.rstrip().split('\t')
                     probeID = line[3]
                     PM = line[9]
-                    for probe in [probe for probe in self.array.probes if probe.probeID == probeID]:
-                        probe.addExperimentIntensity(self, PM)
+                    self.array.probes[probeID].append({self.filename:PM})
             fil.close()
 
 
-def initializeSamples(filename, skip=1):
+def initializeSamples(filename, skip=0):
     """ Creates Sample objects to be included in the analysis"""
     i = 0
     samples = []
@@ -198,7 +167,10 @@ def initializeSamples(filename, skip=1):
             i += 1
         else:
             line = line.rstrip().split('\t')
-            samples += [Sample(line[0], line[1], line[2])]
+            sample_file = line[0]
+            sample_type = line[1]
+            sample_experiment = line[2]
+            samples += [Sample(sample_file, sample_type, sample_experiment)]
             i += 1
     return samples
 

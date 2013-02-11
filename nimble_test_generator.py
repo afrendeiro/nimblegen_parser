@@ -39,7 +39,7 @@ def main():
     number_pair_files = options.samples
     length = options.length
 
-    print "Generating 1 .nsf file, and %s .pair files in a array with %s probes\n" % (number_pair_files, length)
+    print "Generating 1 .nsf file, and %s .pair files with %s probes\n" % (number_pair_files, length)
 
     probeID = generatePairs(number_pair_files, length)
     generateNDF(probeID, length)
@@ -128,7 +128,7 @@ def generateSampleKey(number_pair_files):
     wr = csv.writer(fl, dialect='excel-tab', quoting=csv.QUOTE_NONE)
     for ln in range(number_pair_files):
         line = []
-        line.append('sample' + str(ln) + '.pair')
+        line.append('sample' + str(ln + 1) + '.pair')
         if ln % 2 == 0:
             line.append('e')
         else:
