@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-NimbleGen tiling array file parser
+*NimbleGen tiling array file parser*
 
 Andre F. Rendeiro <afrendeiro at gmail.com>
 2013
@@ -13,8 +13,13 @@ published by the Free Software Foundation.
 import sys
 import linecache
 import os
+import re
 from optparse import OptionParser
 import numpy as np
+import matplotlib.pyplot as plt
+import scipy.stats as st
+import statsmodels.api as sm #pandas, patsy
+
 
 def main():
     # option parser
@@ -50,6 +55,7 @@ def main():
         for sample in samples: print sample.filename
 
     #initialize Array
+    if verbose: print "Initializing array object...\n"
     array = Array(len(samples))
 
     #add array to samples
@@ -64,7 +70,24 @@ def main():
     for sample in samples:
         if verbose: print "Reading sample %s (%s) probe signals" % (sample.number, sample.filename)
         sample.addIntensities(sample.filename)
-        if verbose: print "Finished reading %s.\n" % (sample.filename)
+        if verbose: print "Finished reading sample %s.\n" % (sample.number)
+
+
+    #plot sample density function of intensities
+    for sample in samples:
+        sample.plotDensity()
+        sample.qqPlot()
+    if verbose: print "Produced QC plots per sample"
+
+
+    # pair samples by replicates
+    for sample in samples:
+        if samples[0].sample_experiment == sample[0].sample_experiment:
+
+
+
+
+
 
 
 class Array(object):
@@ -127,6 +150,7 @@ class Sample(object):
     """Generic Class for a Sample made in a hybridization experiment"""
     def __init__(self, filename, sample_number, sample_type, sample_experiment):
         self.filename = filename
+        self.name = re.split('.pair', self.filename)[0]
         self.number = sample_number
         self.sample_type = sample_type  # consider making separate subclasses for IP and input Samples
         self.sample_experiment = sample_experiment
@@ -165,6 +189,55 @@ class Sample(object):
                     x = np.where(self.array.probes==probeID)[0][0]
                     self.array.probes[x][2 + self.number] = (PM)
             fil.close()
+
+    def plotDensity(self):
+        """ Plots sample signals density function"""
+        data = self.array.probes[:, 2 + self.number]  # log2
+        density = st.gaussian_kde(data)
+        xs = np.linspace(0,8,200)
+        density.covariance_factor = lambda : .25
+        density._compute_covariance()
+        plt.figure(self.number)
+        plt.plot(xs,density(xs))
+        plt.xlabel('Probe intensities')
+        plt.ylabel('Density')
+        plt.title('Probe intensities for %s. n= %s' % (self.name, str(self.array.probe_number)))
+        plt.savefig("%s_density.png" % (self.name))
+
+    #def qqPlot(self):
+        #""" Plots sample signals against theorethical distribution"""
+        #data = self.array.probes[:, 2 + self.number]
+        #plt.figure(self.number)
+        #osm, osr = st.probplot(data, fit=0, dist='norm')  # compute
+        #plt.plot(osm, osr, '.')                              # plot
+        ## Add fit line
+        ##(osm, osr), (m, b, r) = st.probplot(data, dist='norm')  # compute
+        ##osmf = osm.take([0, -1])  # endpoints
+        ##osrf = m * osmf + b       # fit line
+        ##ax.plot(osm, osr, '.', osmf, osrf, '-')
+        #plt.xlabel('Theoretical quantiles')
+        #plt.ylabel('Sample quantiles')
+        #plt.title('Probe intensities for %s' % (self.name))
+        #plt.savefig("%s_qqprob.png" % (self.name))
+
+    def qqPlot(self):
+        """ Plots sample signals against theorethical distribution"""
+        import statsmodels.api as sm #pandas, patsy
+        import matplotlib.pyplot as plt
+        data = self.array.probes[:, 2 + self.number]  # add log2
+        plt.figure(self.number)
+        fig = sm.qqplot(data)
+        plt.xlabel('Theoretical quantiles')
+        plt.ylabel('Sample quantiles')
+        plt.title('Probe intensities for %s' % (self.name))
+        plt.savefig("%s_qqprob.png" % (self.name))
+
+
+    def computeMA(self):
+        """   """
+
+    def maPlot(self):
+        """   """
 
 
 def initializeSamples(filename, skip=0):

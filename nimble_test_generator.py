@@ -70,6 +70,8 @@ def generatePairs(number_pair_files, length):
                 probe = ''.join(random.choice(candidate_chars) for _ in range(10))
                 line.append(probe)
                 probeID.append(probe)
+            elif col == 9:
+                line.append(random.choice(range(0,65535)))
             else:
                 line.append(''.join(random.choice(candidate_chars) for _ in range(10)))
         wr.writerow(line)
@@ -89,6 +91,8 @@ def generatePairs(number_pair_files, length):
             for col in range(ncol):
                 if col == 3:
                     line.append(probeID[ln])
+                elif col == 9:
+                    line.append(random.choice(range(0,65535)))
                 else:
                     line.append(''.join(random.choice(candidate_chars) for _ in range(10)))
             wr.writerow(line)
