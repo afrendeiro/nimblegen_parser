@@ -3,7 +3,7 @@
 NimbleGen tiling array file parser
 
 Andre F. Rendeiro <afrendeiro at gmail.com>
-2012
+2013
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License version 2 as
@@ -14,17 +14,18 @@ import sys
 import linecache
 import os
 from optparse import OptionParser
+import numpy as np
 
 def main():
     # option parser
     usage = 'python nimbleparser.py [OPTIONS] <sample_key.txt>'
     parser = OptionParser(usage=usage)
     parser.add_option("-c", "--onecolor",
-    type="int", dest="c_option", default='2',
+    type="int", dest="color", default='2',
     help="Number of colours in the array experiment, default=2")
     parser.add_option("-v", "--verbose",
-    type="str", dest="v_option", default='false',
-    help="'F' if verbose mode is to be deactivated. Default='T'")
+    dest="verbose", action="store_true",
+    help="Set flag if verbose mode is to be activated.")
 
     # read arguments and options
     (options, args) = parser.parse_args()
@@ -34,47 +35,53 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    #if options[0] == 'F':
-    #    verbose = False
+    global verbose
+    verbose = True #options.verbose
+
+    # Start program
+    if verbose: print __doc__
+
     sample_key = args[0]
 
     #initialize Samples (keep list of samples in experiment)
     samples = initializeSamples(sample_key)
-    #debug
-    print "Samples are: "
-    for sample in samples:
-        print sample.filename
+    if verbose:
+        print "Samples are:"
+        for sample in samples: print sample.filename
 
-    #initialize Array (& probes)
-    array = Array()
-    #debug
-    print "Array " + str(array) + " has " + str(array.probe_number) + " probes."
+    #initialize Array
+    array = Array(len(samples))
 
     #add array to samples
     for sample in samples:
         sample.addArray(array)
 
+    #populate array with probe values
+    array.addProbes(array.filename)
+    if verbose: print "Array " + str(array) + " has " + str(array.probe_number) + " probes."
+
     #read intensity for each sample
     for sample in samples:
-        print "Reading ", sample.filename, " probe intensities..."
-        sample.readIntensities(sample.filename)
+        if verbose: print "Reading sample %s (%s) probe signals" % (sample.number, sample.filename)
+        sample.addIntensities(sample.filename)
+        if verbose: print "Finished reading %s.\n" % (sample.filename)
 
-    ##debug
-    #for probe in array.probes[:20]:
-        #print probe.intensity
 
 class Array(object):
     """Generic Class for any array in the experiment"""
-    def __init__(self):
-        self.name = self.getArrayLayout()
-        self.probes = {}
+    def __init__(self, lsamples):
+        self.filename = self.findNDF()
+        self.lsamples = lsamples
+        self.x = 3 + self.lsamples # 3 for number of probe atributes to store
+        self.y = self.arrayDimensions(self.filename)
+        self.probes = np.zeros(shape=(self.y, self.x), dtype=('a10')) # change to appropriate type latter
         self.probe_number = 0
-        self.readNDF(self.getArrayLayout())
+        self.samples = []
 
     def __str__(self):
-        return self.name
+        return self.filename
 
-    def getArrayLayout(self, filename='default'):
+    def findNDF(self, filename='default'):
         """ looks in the working dir for the required .ndf file.
         If not found reads tile layout from the designname info on the pair files first line.
         Returns string.
@@ -85,21 +92,20 @@ class Array(object):
                 return filenm
         if not found:
             raise NotImplementedError("Feature not yet implemented. Put .ndf file in current directory")
-            #getNameFromFile(filename)
 
-        def getNameFromFile(self, filename):
-            """        """
-            pass
-            #first_line = linecache.getline(filename, 0).rstrip().split('\t')
-            #if '.ndf' in first_line:
-                #find name + '.ndf'
+    def arrayY(self, filename):
+        with open(filename) as f:
+            for i, l in enumerate(f):
+                pass
+        return i
 
-    def addProbe(self, probeID, probe_seq, X, Y):
-        """Adds probe to array"""
-        self.probes[probe_seq] = [probeID, X, Y]
-        self.probe_number += 1
+    def arrayDimensions(self, filename, skip=1):
+        """
+        """
+        y = self.arrayY(filename)
+        return y
 
-    def readNDF(self, filename, skip=1):
+    def addProbes(self,  filename, skip=1):
         """Reads .ndf file and returns probes atributes"""
         i = 0
         fl = open(filename, 'r')
@@ -108,43 +114,45 @@ class Array(object):
                 i += 1
             else:
                 line = line.rstrip().split('\t')
-                probeID = line[5]
-                probe_seq = line[12]
+                probeID = line[12]
                 X = line[15]
                 Y = line[16]
-                self.addProbe(probeID, probe_seq, X, Y)
+                self.probes[i - skip][:3] = (probeID, X, Y)
+                self.probe_number += 1
                 i += 1
         fl.close()
 
 
 class Sample(object):
     """Generic Class for a Sample made in a hybridization experiment"""
-    def __init__(self, filename, sample_type, sample_experiment):
+    def __init__(self, filename, sample_number, sample_type, sample_experiment):
         self.filename = filename
+        self.number = sample_number
         self.sample_type = sample_type  # consider making separate subclasses for IP and input Samples
         self.sample_experiment = sample_experiment
         self.array = ''
 
     def addArray(self, array):
         self.array = array
+        array.samples.append(self)
 
-    def readIntensities(self, filename, skip=2):
+    def isFileStandard(self, filename, skip=2):
+        standard_header = ['IMAGE_ID', 'GENE_EXPR_OPTION', 'SEQ_ID', 'PROBE_ID', 'POSITION', 'X', 'Y', 'MATCH_INDEX', 'SEQ_URL', 'PM', 'MM']
+        if not ".pair" in filename:
+            raise ValueError("File not in .pair format")
+        elif not filename in os.listdir('.'):
+            raise IOError("File not found")
+        elif getHeader(filename, skip) != standard_header:
+            raise ValueError("File not in standard .pair format")
+        else:
+            return True
+
+    def addIntensities(self, filename, skip=2):
         """ Reads Nimble file of Sample. Returns list of lists
         skip = starting line of data
         Adds relevant info to the probes.
         """
-        def isFileStandard(filename, skip=2):
-            standard_header = ['IMAGE_ID', 'GENE_EXPR_OPTION', 'SEQ_ID', 'PROBE_ID', 'POSITION', 'X', 'Y', 'MATCH_INDEX', 'SEQ_URL', 'PM', 'MM']
-            if not ".pair" in filename:
-                raise ValueError("File not in .pair format")
-            elif not filename in os.listdir('.'):
-                raise IOError("File not found")
-            elif getHeader(filename, skip) != standard_header:
-                raise ValueError("File not in standard .pair format")
-            else:
-                return True
-
-        if isFileStandard(filename, skip):
+        if self.isFileStandard(filename, skip):
             i = 0
             fil = open(filename, 'r')
             for line in fil:
@@ -154,13 +162,15 @@ class Sample(object):
                     line = line.rstrip().split('\t')
                     probeID = line[3]
                     PM = line[9]
-                    self.array.probes[probeID].append({self.filename:PM})
+                    x = np.where(self.array.probes==probeID)[0][0]
+                    self.array.probes[x][2 + self.number] = (PM)
             fil.close()
 
 
 def initializeSamples(filename, skip=0):
     """ Creates Sample objects to be included in the analysis"""
     i = 0
+    s = 1
     samples = []
     for line in open(filename, 'r'):
         if i < skip:
@@ -168,10 +178,12 @@ def initializeSamples(filename, skip=0):
         else:
             line = line.rstrip().split('\t')
             sample_file = line[0]
+            sample_number = s
             sample_type = line[1]
             sample_experiment = line[2]
-            samples += [Sample(sample_file, sample_type, sample_experiment)]
+            samples += [Sample(sample_file, sample_number, sample_type, sample_experiment)]
             i += 1
+            s += 1
     return samples
 
 
