@@ -26,6 +26,9 @@ def main():
     # option parser
     usage = 'python nimbleparser.py [OPTIONS] <sample_key.txt>'
     parser = OptionParser(usage=usage)
+    parser.add_option("-f", "--format",
+    type="str", dest="format", default='nimblegen',
+    help="Format of .ndf and .pair files, default='Nimblegen', read documentation for more.")
     parser.add_option("-c", "--onecolor",
     type="int", dest="color", default='2',
     help="Number of colours in the array experiment, default=2")
@@ -43,6 +46,8 @@ def main():
 
     global verbose
     verbose = True #options.verbose
+
+    form = options.format
 
     # Start program
     if verbose: print __doc__
@@ -63,7 +68,7 @@ def main():
 
     # Initialize Array with probes
     if verbose: print "\nInitializing array object..."
-    array = Array(nsamples)
+    array = Array(nsamples, form)
     array.addProbes(array.filename)
     if verbose: print "  Array " + str(array) + " has " + str(array.probe_number) + " probes."
     if verbose: print "  Done."
@@ -99,14 +104,22 @@ def main():
 
 class Array(object):
     """Generic Class for any array in the experiment"""
-    def __init__(self, nsamples):
+    def __init__(self, nsamples, form):
         self.filename = self.findNDF()
         self.nsamples = nsamples
-        self.x = 3 + self.nsamples # 3 for number of probe atributes to store
+        self.format = form  # associate the provided format with the record array characteristics
+        #self.x = 3 + self.nsamples # 3 for number of probe atributes to store
         self.y = self.arrayDimensions(self.filename)
-        self.probes = np.zeros(shape=(self.y, self.x), dtype=('a10')) # change to appropriate type latter
+        self.createArray(nsamples, form)
         self.probe_number = 0
         self.samples = {}
+
+    def createArray(self, nsamples, form):
+        # change to appropriate types latter
+        dtype = [('probeID','a12'),('X','i4'),('Y','i4')]
+        for sample in range(nsamples + 1):
+            dtype.append((str(sample),'f8'))
+        self.probes = np.zeros(shape=(self.y, ), dtype=dtype)
 
     def __str__(self):
         return self.filename
@@ -147,10 +160,14 @@ class Array(object):
                 probeID = line[12]
                 X = line[15]
                 Y = line[16]
-                self.probes[i - skip][:3] = (probeID, X, Y)
+                self.probes[i - skip]['probeID'] = probeID
+                self.probes[i - skip]['X'] = X
+                self.probes[i - skip]['Y'] = Y
+                if i == 1: print self.probes[i - skip]
                 self.probe_number += 1
                 i += 1
         fl.close()
+
 
 class Experiment(object):
     """Class to describe experiments (sets of sample replicates and their inputs"""
@@ -206,7 +223,7 @@ class Experiment(object):
             plt.xlabel('M')
             plt.ylabel('A')
             plt.title('')
-            plt.savefig(str(self.name) + "_" + str(s) + ".png")  # don't understand why name = obj
+            plt.savefig("%s_.png") % (self.name) # don't understand why name = obj
 
 
 class Sample(object):
@@ -247,7 +264,9 @@ class Sample(object):
                     line = line.rstrip().split('\t')
                     probeID = line[3]
                     PM = line[9]
-                    x = np.where(self.array.probes==probeID)[0][0]
+                    print probeID
+                    print np.where(self.array.probes[i - skip] == probeID) # Cant find it in array!!!!
+                    x = np.where(self.array.probes[i - skip] == probeID)
                     self.array.probes[x][2 + self.number] = (PM)
             fil.close()
 
